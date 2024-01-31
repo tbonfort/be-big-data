@@ -11,8 +11,8 @@ over 22Gb of data.
 Instead of processing this volume of data on a single node, we will be splitting
 up the workload over multiple independant workers, each worker being responsible
 for computing the median pixel values over a small window (e.g. 549x549 px). The
-full job which consists of processing 216*10980*10980 pixels can in this case
-be decomposed into 400 independant jobs each having to process only 216*549*549
+full job which consists of processing 216x10980x10980 pixels can in this case
+be decomposed into 400 independant jobs each having to process only 216x549x549
 pixels.
 
 # config
