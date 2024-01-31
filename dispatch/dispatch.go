@@ -245,7 +245,7 @@ func main() {
 	var limit int
 
 	flag.StringVar(&project, "project", os.Getenv("GCPPROJECT"), "GCP project")
-	flag.StringVar(&topic, "topic", "bebigdata", "PubSub topic")
+	flag.StringVar(&topic, "topic", os.Getenv("MYNAME"), "PubSub topic")
 	flag.StringVar(&dstPrefix, "dstPrefix", "gs://"+os.Getenv("BUCKETNAME")+"/results/", "Destination prefix")
 	flag.StringVar(&srcPrefix, "srcPrefix", "/vsigs/tb-be-bigdata/t31tcj/", "Source prefix")
 	flag.IntVar(&limit, "limit", 2, "Limit number of tiles")
@@ -257,6 +257,9 @@ func main() {
 	}
 	if strings.HasPrefix(dstPrefix, "gs:///") {
 		log.Fatal("-dstPrefix or $BUCKETNAME is required")
+	}
+	if topic == "" {
+		log.Fatal("-topic or $MYNAME is required")
 	}
 
 	psCl, err := pubsub.NewClient(context.Background(), project)
