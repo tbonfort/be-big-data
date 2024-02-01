@@ -243,12 +243,17 @@ func main() {
 	var dstPrefix string
 	var srcPrefix string
 	var limit int
+	var tilesize int
+	var imagesize int
 
 	flag.StringVar(&project, "project", os.Getenv("GCPPROJECT"), "GCP project")
 	flag.StringVar(&topic, "topic", os.Getenv("MYNAME"), "PubSub topic")
 	flag.StringVar(&dstPrefix, "dstPrefix", "gs://"+os.Getenv("BUCKETNAME")+"/results/", "Destination prefix")
 	flag.StringVar(&srcPrefix, "srcPrefix", "/vsigs/tb-be-bigdata/t31tcj/", "Source prefix")
 	flag.IntVar(&limit, "limit", 2, "Limit number of tiles")
+	flag.IntVar(&tilesize, "tilesize", 512, "Tile size")
+	flag.IntVar(&imagesize, "imagesize", 10980, "Image size")
+
 	flag.Parse()
 	ctx := context.Background()
 
@@ -272,30 +277,37 @@ func main() {
 		inputs[i] = srcPrefix + inputs[i]
 	}
 
-	size := 10980
-	tsize := 549
-
 	var wg sync.WaitGroup
 
 	n := 0
 	var totalErrors uint64
 outer:
-	for x := 0; x < size; x += tsize {
-		for y := 0; y < size; y += tsize {
-			n++
-			if limit >= 0 && n > limit {
+	for x := 0; x < imagesize-1; x += tilesize {
+		xsize := tilesize
+		if x+tilesize > imagesize {
+			xsize = imagesize - x
+		}
+		for y := 0; y < imagesize-1; y += tilesize {
+			if limit > 0 && n >= limit {
 				break outer
+			}
+			n++
+			ysize := tilesize
+			if y+tilesize > imagesize {
+				ysize = imagesize - y
 			}
 			mrequest := MRequest{
 				Datasets:    inputs,
-				Window:      [4]int{x, y, tsize, tsize},
+				Window:      [4]int{x, y, xsize, ysize},
 				Destination: fmt.Sprintf("%stile%d-%d.tif", dstPrefix, x, y),
 			}
 			mreqb, _ := json.Marshal(mrequest)
+			//log.Printf("%v", mrequest.Window)
+			//continue
+			wg.Add(1)
 			res := topicObj.Publish(ctx, &pubsub.Message{
 				Data: mreqb,
 			})
-			wg.Add(1)
 			go func(i int, res *pubsub.PublishResult) {
 				defer wg.Done()
 				id, err := res.Get(ctx)
@@ -304,7 +316,7 @@ outer:
 					atomic.AddUint64(&totalErrors, 1)
 					return
 				}
-				log.Printf("Published message %d; msg ID: %v\n", i, id)
+				log.Printf("Published tile %v; msg ID: %v\n", mrequest.Window, id)
 
 			}(n, res)
 		}

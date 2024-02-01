@@ -14,46 +14,67 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/airbusgeo/cogger"
 	"github.com/airbusgeo/godal"
-	"github.com/tbonfort/gobs"
+	"github.com/airbusgeo/osio"
+	"github.com/airbusgeo/osio/gcs"
+	"github.com/sourcegraph/conc/pool"
 )
 
-func median(inputs [][]uint16) []uint16 {
-	result := make([]uint16, len(inputs[0]))
-	for pix := range inputs[0] {
-		sample := make([]uint16, 0, len(inputs))
+func median(inputs [][]uint8) []uint8 {
+	result := make([]uint8, len(inputs[0]))
+	bandLen := len(inputs[0]) / 3
+	sample := make([][3]uint8, len(inputs))
+	for pix := 0; pix < bandLen; pix++ {
+		count := 0
 		for s := range inputs {
-			if inputs[s][pix] == 0 {
+			if inputs[s][pix] == 0 || inputs[s][pix+bandLen] == 0 || inputs[s][pix+2*bandLen] == 0 ||
+				inputs[s][pix] == 255 || inputs[s][pix+bandLen] == 255 || inputs[s][pix+2*bandLen] == 255 { //nodata or saturated
 				continue
 			}
-			sample = append(sample, inputs[s][pix])
+			sample[count][0] = inputs[s][pix]
+			sample[count][1] = inputs[s][pix+bandLen]
+			sample[count][2] = inputs[s][pix+2*bandLen]
+			count++
 		}
-		sort.Slice(sample, func(i, j int) bool { return sample[i] < sample[j] })
-		if len(sample) != 0 {
-			result[pix] = sample[len(sample)/2]
+		if count == 0 {
+			continue
 		}
+		sort.Slice(sample[0:count], func(i, j int) bool {
+			return int(sample[i][0])+int(sample[i][1])+int(sample[i][2]) < int(sample[j][0])+int(sample[j][1])+int(sample[j][2])
+		})
+
+		med := count / 2
+		result[pix] = sample[med][0]
+		result[pix+bandLen] = sample[med][1]
+		result[pix+2*bandLen] = sample[med][2]
 	}
 	return result
 }
 
-func getbuffer(dataset string, window [4]int) ([]uint16, error) {
+func getbuffer(dataset string, window [4]int) ([]uint8, error) {
 	ds, err := godal.Open(dataset)
 	if err != nil {
 		return nil, fmt.Errorf("open dataset: %w", err)
 	}
 	defer ds.Close()
-	buf := make([]uint16, window[2]*window[3]*3) //3 bands
+	s := ds.Structure()
+	if s.NBands != 3 {
+		return nil, fmt.Errorf("expecting 3 bands, got %d", s.NBands)
+	}
+	if window[0] < 0 || window[1] < 0 || window[0]+window[2] > s.SizeX || window[1]+window[3] > s.SizeY {
+		return nil, fmt.Errorf("window out of bounds")
+	}
+	buf := make([]uint8, window[2]*window[3]*3) //3 bands
 
-	ds.Read(window[0], window[1], buf, window[2], window[3], godal.BandInterleaved())
-	return buf, nil
+	err = ds.Read(window[0], window[1], buf, window[2], window[3], godal.BandInterleaved())
+	return buf, err
 }
 
-func getbuffers(datasets []string, window [4]int) ([][]uint16, error) {
-	buffers := make([][]uint16, len(datasets))
-	pool := gobs.NewPool(10)
-	batch := pool.Batch()
+func getbuffers(datasets []string, window [4]int) ([][]uint8, error) {
+	buffers := make([][]uint8, len(datasets))
+	pool := pool.New().WithErrors().WithMaxGoroutines(10)
 	for i := range buffers {
 		i := i
-		batch.Submit(func() error {
+		pool.Go(func() error {
 			buf, err := getbuffer(datasets[i], window)
 			if err != nil {
 				return err
@@ -62,7 +83,7 @@ func getbuffers(datasets []string, window [4]int) ([][]uint16, error) {
 			return nil
 		})
 	}
-	if err := batch.Wait(); err != nil {
+	if err := pool.Wait(); err != nil {
 		return nil, err
 	}
 	return buffers, nil
@@ -87,7 +108,7 @@ func processRequest(ctx context.Context, r MRequest) error {
 		return fmt.Errorf("create temp file: %w", err)
 	}
 	defer os.Remove(tmpfile.Name())
-	ds, err := godal.Create(godal.GTiff, tmpfile.Name(), 3, godal.UInt16, r.Window[2], r.Window[3],
+	ds, err := godal.Create(godal.GTiff, tmpfile.Name(), 3, godal.Byte, r.Window[2], r.Window[3],
 		godal.CreationOption("COMPRESS=LZW", "TILED=YES"),
 	)
 	if err != nil {
@@ -127,6 +148,7 @@ func processRequest(ctx context.Context, r MRequest) error {
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("close gs://%s/%s: %w", bucket, obj, err)
 	}
+	log.Printf("wrote to gs://%s/%s", bucket, obj)
 	return nil
 }
 
@@ -151,6 +173,7 @@ func MedianHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("ioutil.ReadAll: %v", err)
 		return
 	}
+	r.Body.Close()
 	// byte slice unmarshalling handles base64 decoding.
 	if err := json.Unmarshal(body, &m); err != nil {
 		log.Printf("json.Unmarshal: %v", err)
@@ -171,8 +194,18 @@ func MedianHandler(w http.ResponseWriter, r *http.Request) {
 var gsClient *storage.Client
 
 func main() {
+	ctx := context.Background()
 	godal.RegisterInternalDrivers()
-	var err error
+	gcsR, err := gcs.Handle(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	osioA, _ := osio.NewAdapter(gcsR,
+		osio.BlockSize("64k"),
+		osio.NumCachedBlocks(1000),
+	)
+	godal.RegisterVSIHandler("gs://", osioA)
+
 	gsClient, err = storage.NewClient(context.Background())
 	if err != nil {
 		log.Fatal(err)
