@@ -14,5 +14,6 @@
         "ms-python.python"
       ]
     }
-  }
+  },
+  "onCreateCommand": "bash install.sh"
 }
