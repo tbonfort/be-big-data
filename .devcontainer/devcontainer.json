@@ -1,6 +1,11 @@
 {
   "image": "mcr.microsoft.com/devcontainers/python:3-bookworm",
   "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/wxw-matt/devcontainer-features/apt:0": {
+      "packages":"gdal-bin libgdal-dev",
+      "clean_cache":false
+    },
     "ghcr.io/dhoeric/features/google-cloud-cli:1": {}
   }
 }
