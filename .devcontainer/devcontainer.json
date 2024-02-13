@@ -3,8 +3,16 @@
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/akhildevelops/devcontainer-features/apt:0": {
-      "PACKAGES":"gdal-bin,libgdal-dev"
+      "PACKAGES":"gdal-bin,libgdal-dev,python3-notebook,python3-rasterio"
     },
-    "ghcr.io/dhoeric/features/google-cloud-cli:1": {},
+    "ghcr.io/dhoeric/features/google-cloud-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-toolsai.jupyter",
+        "ms-python.python"
+      ]
+    }
   }
 }
