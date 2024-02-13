@@ -6,6 +6,7 @@
       "packages":"gdal-bin libgdal-dev",
       "clean_cache":false
     },
-    "ghcr.io/dhoeric/features/google-cloud-cli:1": {}
+    "ghcr.io/dhoeric/features/google-cloud-cli:1": {},
+    "ghcr.io/devcontainers/features/go:1": {}
   }
 }
