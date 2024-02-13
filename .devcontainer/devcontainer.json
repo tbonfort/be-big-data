@@ -2,9 +2,8 @@
   "image": "mcr.microsoft.com/devcontainers/go:1",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/wxw-matt/devcontainer-features/apt:0": {
-      "packages":"gdal-bin libgdal-dev",
-      "clean_cache":false
+    "ghcr.io/akhildevelops/devcontainer-features/apt:0": {
+      "PACKAGES":"gdal-bin,libgdal-dev"
     },
     "ghcr.io/dhoeric/features/google-cloud-cli:1": {},
   }
