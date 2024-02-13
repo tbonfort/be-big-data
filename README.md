@@ -30,16 +30,19 @@ export DIMAGE=eu.gcr.io/$GCPPROJECT/be:202401
 export MYNAME=bebigdata
 export SAEMAIL=$MYNAME@$GCPPROJECT.iam.gserviceaccount.com
 
-gcloud iam service-accounts create $MYNAME
-gcloud services enable containerregistry.googleapis.com
-gcloud services enable run.googleapis.com
-gcloud services enable pubsub.googleapis.com
-gcloud auth configure-docker
+gcloud auth login
+gcloud auth application-default login
+
+gcloud --project=$GCPPROJECT iam service-accounts create $MYNAME
+gcloud --project=$GCPPROJECT services enable containerregistry.googleapis.com
+gcloud --project=$GCPPROJECT services enable run.googleapis.com
+gcloud --project=$GCPPROJECT services enable pubsub.googleapis.com
+gcloud --project=$GCPPROJECT auth configure-docker
 ```
 
 ```bash
-gcloud storage buckets create gs://$BUCKETNAME --default-storage-class=standard --location=europe-west1
-gcloud storage buckets add-iam-policy-binding gs://$BUCKETNAME \
+gcloud --project=$GCPPROJECT storage buckets create gs://$BUCKETNAME --default-storage-class=standard --location=europe-west1
+gcloud --project=$GCPPROJECT storage buckets add-iam-policy-binding gs://$BUCKETNAME \
 --member=serviceAccount:$SAEMAIL \
 --role=roles/storage.objectAdmin
 ```
@@ -74,7 +77,7 @@ docker push $DIMAGE
 
 
 ```bash
-gcloud run deploy $MYNAME --image $DIMAGE --allow-unauthenticated \
+gcloud --project=$GCPPROJECT run deploy $MYNAME --image $DIMAGE --allow-unauthenticated \
 --service-account=$SAEMAIL --region=europe-west1 \
 --set-env-vars=CPL_MACHINE_IS_GCE=YES \
 --memory 2048M --concurrency=1 --max-instances=50
@@ -90,9 +93,9 @@ We will now configure a pubsub queue which is configured to dispatch payloads
 to our cloud run service:
 
 ```bash
-gcloud pubsub topics create $MYNAME
-gcloud pubsub topics create myerrors
-gcloud pubsub subscriptions create $MYNAME --topic $MYNAME \
+gcloud --project=$GCPPROJECT pubsub topics create $MYNAME
+gcloud --project=$GCPPROJECT pubsub topics create myerrors
+gcloud --project=$GCPPROJECT pubsub subscriptions create $MYNAME --topic $MYNAME \
 --ack-deadline=600 \
 --max-delivery-attempts=5 --dead-letter-topic=myerrors \
 --push-endpoint=$RUNURL/median
