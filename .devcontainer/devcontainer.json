@@ -1,0 +1,6 @@
+{
+  "image": "mcr.microsoft.com/devcontainers/python:3-bookworm",
+  "features": {
+    "ghcr.io/dhoeric/features/google-cloud-cli:1": {}
+  }
+}
