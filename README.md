@@ -31,7 +31,6 @@ export MYNAME=bebigdata
 export SAEMAIL=$MYNAME@$GCPPROJECT.iam.gserviceaccount.com
 
 gcloud auth login
-gcloud auth application-default login
 
 gcloud --project=$GCPPROJECT iam service-accounts create $MYNAME
 gcloud --project=$GCPPROJECT services enable containerregistry.googleapis.com
