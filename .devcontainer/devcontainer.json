@@ -1,19 +1,4 @@
 {
-  "image": "mcr.microsoft.com/devcontainers/go:1",
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/akhildevelops/devcontainer-features/apt:0": {
-      "PACKAGES":"gdal-bin,libgdal-dev,python3-notebook,python3-rasterio,python3-matplotlib"
-    },
-    "ghcr.io/dhoeric/features/google-cloud-cli:1": {}
-  },
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "ms-toolsai.jupyter",
-        "ms-python.python"
-      ]
-    }
-  },
-  "onCreateCommand": "bash install.sh"
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "postCreateCommand": "bash install.sh"
 }
