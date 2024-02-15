@@ -19,23 +19,33 @@ pixels.
 
 - Create a codespace from this repository
 - wait for the codespace setup script to finish
-- while the script finishes, open another terminal and authenticate with GCP: `gcloud auth login`
+- authenticate with GCP from the codespace terminal: `gcloud auth login`
 
-once the setup has finished, open the `be.ipynb` notebook to explore the available data.
+once the setup has finished, open the `be.ipynb` notebook to explore the available data
+before continuing to the next section
 
 # config
 
+edit the following code where noted, and copy paste the commands into your codespace
+terminal in order to setup our local environment and the GCP ressources we will be using.
+
 ```bash
-#your gcp project
+# there are 3 variables you must edit before running the subsequent commands:
+
+# replace with your gcp project name
 export GCPPROJECT=foo-bar-1234
-#a globally unique bucket name for this BE
+# edit and choose a globally unique bucket name for this BE
 export BUCKETNAME=xxxxx
-# edit to point to the correct file
+# edit to point to the correct file (which was created when you ran "gcloud auth login")
 export GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/myemail@mydomain.com/adc.json
 
-
+# you may edit the following variables, but it is not required
+# the name of the docker image to produce
 export DIMAGE=eu.gcr.io/$GCPPROJECT/be:202401
+# the name of the pubsub queue and cloud run service we will create
 export MYNAME=bebigdata
+# name of the service account running the cloud run service, which we must authorize to 
+# read and create data on your cloud bucket
 export SAEMAIL=$MYNAME@$GCPPROJECT.iam.gserviceaccount.com
 
 
@@ -46,6 +56,8 @@ gcloud --project=$GCPPROJECT services enable pubsub.googleapis.com
 gcloud --project=$GCPPROJECT auth configure-docker
 ```
 
+create a bucket to store our data. in case this command errors out, choose another name
+for $BUCKETNAME
 ```bash
 gcloud --project=$GCPPROJECT storage buckets create gs://$BUCKETNAME --default-storage-class=standard --location=europe-west1
 gcloud --project=$GCPPROJECT storage buckets add-iam-policy-binding gs://$BUCKETNAME \
@@ -55,7 +67,7 @@ gcloud --project=$GCPPROJECT storage buckets add-iam-policy-binding gs://$BUCKET
 
 # creating the worker code
 
-we will be creating a docker image that exposes an HTTP endpoint that receives
+we will be creating a program that exposes an HTTP endpoint that receives
 request with a payload of the form
 
 ```json
@@ -67,7 +79,7 @@ request with a payload of the form
         "....and 214 more..."]
 }
 ```
-upon receiving an HTTP request, the worker should:
+upon receiving an HTTP request, the program should:
 
 - decode the json payload
 - for each dataset, extract the buffer of shape (3,width,height) starting at (x0,y0)
@@ -80,15 +92,16 @@ upon receiving an HTTP request, the worker should:
 
 ## implementation
 
-create the program that will be used for computing individual tiles.
+An example implementation can be found in the `answers/worker` directory.
 
-An example implementation can be found in the `answers/worker` directory,
-which can be tested locally on a single tile by using the `dispatcher` code
+we will first test this code locally on a single tile by using the `dispatcher` code
 from the notebook, and running a local webserver with:
 
 ```bash
+cd answers/worker
 gunicorn --bind :8080 --workers 1 --threads 1 --timeout 0 main:app --reload
 ```
+
 
 ## docker
 
@@ -102,6 +115,15 @@ docker push $DIMAGE
 
 ## cloud run
 
+Cloud Run is a managed compute platform that lets you run containers directly on top of Google's
+scalable infrastructure. You can deploy code written in any programming language on Cloud Run
+if you can build a container image from it.
+
+https://cloud.google.com/run/docs/overview/what-is-cloud-run
+
+https://console.cloud.google.com/run
+
+
 ```bash
 gcloud --project=$GCPPROJECT run deploy $MYNAME --image $DIMAGE --allow-unauthenticated \
 --service-account=$SAEMAIL --region=europe-west1 \
@@ -110,7 +132,7 @@ gcloud --project=$GCPPROJECT run deploy $MYNAME --image $DIMAGE --allow-unauthen
 ```
 The command will print out on which URL your service is listening.
 ```bash
-# you MUST edit this
+# you MUST edit this to replace with the url printed out
 export RUNURL=https://bebigdata-xxxx-yyyy-zzzz.a.run.app
 ```
 
@@ -118,30 +140,51 @@ Adapt the dispatch code so that the test request is sent to your cloud run insta
 instead of your local gunicorn instance. check the cloud run logs for any errors.
 
 ## pubsub
+
+Pub/Sub is an asynchronous and scalable messaging service that decouples services
+producing messages from services processing those messages.
+
+https://cloud.google.com/pubsub/docs/overview
+
+
 We will now configure a pubsub queue which is configured to dispatch payloads
 to our cloud run service. Each time a message is posted to this pubsub queue,
-the pubsub service will emit a request to the cloud run endpoint, which in turn
+the pubsub service will emit a request to our cloud run endpoint, which in turn
 will cause cloud run to create an instance to process that request/payload.
 
 ```bash
 gcloud --project=$GCPPROJECT pubsub topics create $MYNAME
 gcloud --project=$GCPPROJECT pubsub topics create myerrors
+
+#before running this, make sure you have updated $RUNURL with the correct value 
+#that was printed out when you deployed your cloud run service
 gcloud --project=$GCPPROJECT pubsub subscriptions create $MYNAME --topic $MYNAME \
 --ack-deadline=600 \
 --max-delivery-attempts=5 --dead-letter-topic=myerrors \
 --push-endpoint=$RUNURL/median
 ```
-go to the pubsub console page and allow/adjust service account rights on myerrors topic
+
+optional: go to the pubsub console page and allow/adjust service account rights on myerrors topic
+
+https://console.cloud.google.com/cloudpubsub/subscription/detail/bebigdata
+
 
 # launching a parallel job
 
-adapt the code in the `dispatch` section of the notebook to first post a single
-tile payload to the pubsub queue, and check again the cloud run logs for errors.
+switch back again to the notebook, to the `dispatcher` section
 
-once you have checked for errors, adapt the code so that **all** tiles covering
-the t31tcj granule are published to pubsub. **WARNING**: this will cause a large
-number of instances to be booted up and billed.
+adapt the code to stop sending http requests to localhost, but instead point them to
+the $RUNURL/median endpoint on cloud run. Post a single tile to that endpoint and
+check the cloud run logs that the tile has been processed without errors.
 
+adapt the code once again to stop sending http requests and instead push its payloads
+to pubsub. Post a single tile payload to the pubsub queue, and check again
+the cloud run logs that the tile has been processed without errors.
+
+once there are no errors, adapt the code so that **all** tiles covering
+the t31tcj granule are published to pubsub.
+
+**WARNING**: this will cause a large number of instances to be booted up and billed.
 
 go to the cloud run console and observe the metrics and logs (that can take a few
 seconds to appear).
