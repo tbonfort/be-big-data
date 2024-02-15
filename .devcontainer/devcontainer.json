@@ -1,4 +1,12 @@
 {
   "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "postCreateCommand": "bash install.sh"
+  "onCreateCommand": "bash install.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-toolsai.jupyter",
+        "ms-python.python"
+      ]
+    }
+  }
 }

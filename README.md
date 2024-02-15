@@ -15,8 +15,13 @@ full job which consists of processing 216x10980x10980 pixels can in this case
 be decomposed into ~110 independant jobs each having to process only 216x1024x1024
 pixels.
 
-Create a codespace from this repository, and load the `be.ipynb` notebook to
-explore the available data.
+# initial setup
+
+- Create a codespace from this repository
+- wait for the codespace setup script to finish
+- while the script finishes, open another terminal and authenticate with GCP: `gcloud auth login`
+
+once the setup has finished, open the `be.ipynb` notebook to explore the available data.
 
 # config
 
@@ -25,13 +30,14 @@ explore the available data.
 export GCPPROJECT=foo-bar-1234
 #a globally unique bucket name for this BE
 export BUCKETNAME=xxxxx
+# edit to point to the correct file
+export GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/myemail@mydomain.com/adc.json
+
 
 export DIMAGE=eu.gcr.io/$GCPPROJECT/be:202401
 export MYNAME=bebigdata
 export SAEMAIL=$MYNAME@$GCPPROJECT.iam.gserviceaccount.com
 
-gcloud auth login
-export GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/myemail@mydomain.com/adc.json
 
 gcloud --project=$GCPPROJECT iam service-accounts create $MYNAME
 gcloud --project=$GCPPROJECT services enable containerregistry.googleapis.com
