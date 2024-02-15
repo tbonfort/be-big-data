@@ -15,7 +15,8 @@ full job which consists of processing 216x10980x10980 pixels can in this case
 be decomposed into ~110 independant jobs each having to process only 216x1024x1024
 pixels.
 
-Load the `be.ipynb` notebook to explore the available data.
+Create a codespace from this repository, and load the `be.ipynb` notebook to
+explore the available data.
 
 # config
 
@@ -46,7 +47,7 @@ gcloud --project=$GCPPROJECT storage buckets add-iam-policy-binding gs://$BUCKET
 --role=roles/storage.objectAdmin
 ```
 
-# deploying the cloud run worker
+# creating the worker code
 
 we will be creating a docker image that exposes an HTTP endpoint that receives
 request with a payload of the form
@@ -71,7 +72,7 @@ upon receiving an HTTP request, the worker should:
 
 
 
-## docker
+## implementation
 
 create the program that will be used for computing individual tiles.
 
@@ -83,6 +84,8 @@ from the notebook, and running a local webserver with:
 gunicorn --bind :8080 --workers 1 --threads 1 --timeout 0 main:app --reload
 ```
 
+## docker
+
 Once your code is working correctly, build it as a docker image so that it can
 be hosted on another platform
 
@@ -92,7 +95,6 @@ docker push $DIMAGE
 ```
 
 ## cloud run
-
 
 ```bash
 gcloud --project=$GCPPROJECT run deploy $MYNAME --image $DIMAGE --allow-unauthenticated \
@@ -106,9 +108,14 @@ The command will print out on which URL your service is listening.
 export RUNURL=https://bebigdata-xxxx-yyyy-zzzz.a.run.app
 ```
 
+Adapt the dispatch code so that the test request is sent to your cloud run instance
+instead of your local gunicorn instance. check the cloud run logs for any errors.
+
 ## pubsub
 We will now configure a pubsub queue which is configured to dispatch payloads
-to our cloud run service:
+to our cloud run service. Each time a message is posted to this pubsub queue,
+the pubsub service will emit a request to the cloud run endpoint, which in turn
+will cause cloud run to create an instance to process that request/payload.
 
 ```bash
 gcloud --project=$GCPPROJECT pubsub topics create $MYNAME
@@ -122,20 +129,23 @@ go to the pubsub console page and allow/adjust service account rights on myerror
 
 # launching a parallel job
 
-the code in the `dispatch` section of the notebook creates one payload per tile
-covering the t31tcj granule and publishes it to pubsub
+adapt the code in the `dispatch` section of the notebook to first post a single
+tile payload to the pubsub queue, and check again the cloud run logs for errors.
+
+once you have checked for errors, adapt the code so that **all** tiles covering
+the t31tcj granule are published to pubsub. **WARNING**: this will cause a large
+number of instances to be booted up and billed.
 
 
 go to the cloud run console and observe the metrics and logs (that can take a few
-seconds to appear). if all worked correctly, we can now launch the full number of
-jobs.
+seconds to appear).
 
 check your output bucket (by default $BUCKETNAME/results): are all tiles present?
 
 TODO: check log for errors. were retries successful? how to configure cloud-run
 concurrency and/or pubsub retries to avoid errors and/or 
 
-# reconstructing the final median image
+# reconstructing/viewing the final median image
 
 c.f. notebook
 
