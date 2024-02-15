@@ -10,19 +10,18 @@ over 22Gb of data.
 
 Instead of processing this volume of data on a single node, we will be splitting
 up the workload over multiple independant workers, each worker being responsible
-for computing the median pixel values over a small window (e.g. 549x549 px). The
+for computing the median pixel values over a small window (e.g. 1024x1024 px). The
 full job which consists of processing 216x10980x10980 pixels can in this case
-be decomposed into 400 independant jobs each having to process only 216x549x549
+be decomposed into ~110 independant jobs each having to process only 216x1024x1024
 pixels.
+
+Load the `be.ipynb` notebook to explore the available data.
 
 # config
 
 ```bash
-#you MUST edit these 2 variables
-
 #your gcp project
 export GCPPROJECT=foo-bar-1234
-
 #a globally unique bucket name for this BE
 export BUCKETNAME=xxxxx
 
@@ -31,6 +30,7 @@ export MYNAME=bebigdata
 export SAEMAIL=$MYNAME@$GCPPROJECT.iam.gserviceaccount.com
 
 gcloud auth login
+export GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/myemail@mydomain.com/adc.json
 
 gcloud --project=$GCPPROJECT iam service-accounts create $MYNAME
 gcloud --project=$GCPPROJECT services enable containerregistry.googleapis.com
@@ -55,19 +55,38 @@ request with a payload of the form
 {
     "window":[x0,y0,width,height],
     "destination":"gs://bucket/path-to-result-tile.tif",
-    "datasets":["/vsigs/bucket/prefix/T31TCJ_20230102T104441_TCI.tif",
-        "/vsigs/bucket/prefix/T31TCJ_20230103T110349_TCI.tif",
+    "datasets":["gs://bucket/prefix/T31TCJ_20230102T104441_TCI.tif",
+        "gs://bucket/prefix/T31TCJ_20230103T110349_TCI.tif",
         "....and 214 more..."]
 }
 ```
+upon receiving an HTTP request, the worker should:
+
+- decode the json payload
+- for each dataset, extract the buffer of shape (3,width,height) starting at (x0,y0)
+- create a resulting buffer of shape (3,width,height) where each pixel corresponds to
+  the rgb triplet of median luminance, after having filtered out samples that are equal
+  to 0 (no data, i.e. outide the satellite swath) or 255 (saturated, most likely cloud)
+- upload the resulting buffer as a COG file to the requested destination
+
 
 
 ## docker
 
-create the docker image that will be deployed for computing individual tiles:
+create the program that will be used for computing individual tiles.
+
+An example implementation can be found in the `answers/worker` directory,
+which can be tested locally on a single tile by using the `dispatcher` code
+from the notebook, and running a local webserver with:
 
 ```bash
-cd worker
+gunicorn --bind :8080 --workers 1 --threads 1 --timeout 0 main:app --reload
+```
+
+Once your code is working correctly, build it as a docker image so that it can
+be hosted on another platform
+
+```bash
 docker build -t $DIMAGE .
 docker push $DIMAGE
 ```
@@ -103,23 +122,13 @@ go to the pubsub console page and allow/adjust service account rights on myerror
 
 # launching a parallel job
 
-the code in dispatch.go creates one payload per 549x549 tile covering the t31tcj granule
-and publishes it to pubsub
-```bash
-cd dispatch
-go build .
-#try out our service, by default only 2 tiles are sent to avoid flooding
-#in case of misconfiguration or bugs
-./dispatch
-```
+the code in the `dispatch` section of the notebook creates one payload per tile
+covering the t31tcj granule and publishes it to pubsub
+
 
 go to the cloud run console and observe the metrics and logs (that can take a few
 seconds to appear). if all worked correctly, we can now launch the full number of
-jobs:
-
-```bash
-./dispatch -limit=-1
-```
+jobs.
 
 check your output bucket (by default $BUCKETNAME/results): are all tiles present?
 
@@ -128,7 +137,7 @@ concurrency and/or pubsub retries to avoid errors and/or
 
 # reconstructing the final median image
 
-TODO
+c.f. notebook
 
 # bonus
 

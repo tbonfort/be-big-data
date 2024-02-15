@@ -7,3 +7,4 @@ Werkzeug==3.0.1
 rasterio
 numpy
 google-cloud-storage
+numba

@@ -5,40 +5,40 @@ import rasterio
 from rasterio.windows import Window
 from rasterio.transform import Affine
 import numpy as np
-import numpy.ma as ma
 import multiprocessing.dummy as mp
 from functools import partial
 import tempfile
 import os
 from google.cloud import storage
 from google.cloud.storage.blob import Blob
+import numba
+import time
 
 
 from flask import Flask, request
 
 
+@numba.jit()
 def median(inputs):
     bandLen = len(inputs[0]) // 3
-    inputs = np.array(inputs)
-    inputs = inputs.reshape(-1, 3, bandLen)
-    result = np.median(inputs, axis=0)
-    return result.flatten().astype(np.uint8)
-
-def median_nodata(inputs):
-    n_bands = 3
-    bandLen = len(inputs[0]) // n_bands
-    inputs = np.array(inputs, dtype=np.float16)
-    inputs = inputs.reshape(-1, n_bands, bandLen)
-    # mask for a pixel for an image, any band is 0 or 255
-    mask = np.any((inputs == 0) | (inputs == 255), axis=1)
-    # duplicate the mask for the "n_bands"" bands
-    mask_full = np.repeat(mask, n_bands, axis=1).reshape(-1, n_bands, bandLen, order='F')
-    # compute the masked median
-    inputs_ma = ma.masked_array(inputs, mask_full)
-    result = ma.median(inputs_ma, axis=0).filled(0)
-    return result.flatten().astype(np.uint8)
-
-    
+    sample = np.zeros((len(inputs), 3), dtype=np.uint8)
+    #sample = [[0,0,0]] * len(inputs)
+    result = np.zeros_like(inputs[0])
+    for pix in range(bandLen):
+        count = 0
+        for s in range(len(inputs)):
+            if (inputs[s][pix] == 0 or inputs[s][pix+bandLen] == 0 or inputs[s][pix+2*bandLen] == 0 or
+                inputs[s][pix] == 255 or inputs[s][pix+bandLen] == 255 or inputs[s][pix+2*bandLen] == 255): #nodata or saturated
+                continue
+            sample[count] = [inputs[s][pix], inputs[s][pix+bandLen], inputs[s][pix+2*bandLen]]
+            count += 1
+        if count == 0:
+            continue
+        shortlist = list(sample[:count])
+        shortlist.sort(key=lambda x: sum(x))
+        med = count // 2
+        result[pix], result[pix+bandLen], result[pix+2*bandLen] = shortlist[med]
+    return result
 
 def getbuffer(dataset, box):
     with rasterio.open(dataset) as ds:
@@ -46,7 +46,7 @@ def getbuffer(dataset, box):
             raise ValueError("expecting 3 bands, got %d" % ds.count)
         if any(x < 0 for x in box) or box[0]+box[2] > ds.width or box[1]+box[3] > ds.height:
             raise ValueError("window out of bounds")
-        buf = ds.read(window=Window(box[0],box[1],box[2],box[3]))
+        buf = ds.read(window=Window(box[0],box[1],box[2],box[3]))#,out_shape=(box[2],box[3],3))
         return buf.flatten()
 
 
@@ -69,12 +69,15 @@ def index():
     
     r = json.loads(base64.b64decode(envelope['message']['data']))
 
-
+    start = time.time()
     getbuffer_part = partial(getbuffer, box=r["window"])
     with mp.Pool(10) as pool:
         bufs = pool.map(getbuffer_part, r["datasets"])
+    print("read time", time.time() - start)
 
-    result = median_nodata(bufs)
+    start = time.time()
+    result = median(bufs)
+    print("median time", time.time() - start)
 
 
 
