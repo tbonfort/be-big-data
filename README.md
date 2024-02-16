@@ -94,27 +94,46 @@ upon receiving an HTTP request, the program should:
 
 ## implementation
 
-An example implementation can be found in the `answers/worker` directory.
+An example implementation can be found in the `worker.py` file.
 
-we will first test this code locally on a single tile by using the `dispatcher` code
-from the notebook, and running a local webserver with:
+we will first test this code locally on a single tile.
+return to the `dispatcher` code from the notebook to understand how we will be
+creating json payloads that can be processed by our worker program.
+
+from a terminal, run a local webserver that exposes our worker code with:
 
 ```bash
-cd answers/worker
-pip install -r requirements.txt
-gunicorn --bind :8080 --workers 1 --threads 1 --timeout 0 main:app --reload
+gunicorn --bind :8080 --workers 1 --threads 1 --timeout 0 worker:app --reload
 ```
+
+and then run the notebook's dispatch block. check the logs of our worker and
+make sure that our resulting tile is now available on our bucket.
 
 
 ## docker
 
+https://docs.docker.com/get-started/overview/#the-docker-platform
+
 Once your code is working correctly, build it as a docker image so that it can
-be hosted on another platform
+be hosted on another platform. 
 
 ```bash
 docker build -t $DIMAGE .
 docker push $DIMAGE
 ```
+
+we can also run this code locally directly from the docker image, on the :8081
+port:
+
+```bash
+docker run -t -e PORT=8081 -p 8081:8081 $DIMAGE
+```
+modify the dispatch code so that your test request is sent to this docker instance.
+this time the request will fail. why did it fail?
+
+bonus: modify the previous `docker run` command so that it runs correctly. hint: use
+a docker volume to mount your local credentials, and set the correct environment variable
+to point to the local path of your credential file.
 
 ## cloud run
 
@@ -139,8 +158,13 @@ The command will print out on which URL your service is listening.
 export RUNURL=https://bebigdata-xxxx-yyyy-zzzz.a.run.app
 ```
 
-Adapt the dispatch code so that the test request is sent to your cloud run instance
-instead of your local gunicorn instance. check the cloud run logs for any errors.
+Adapt the dispatch code to stop sending http requests to localhost, but instead
+point them to the $RUNURL/median endpoint on cloud run. Post a single tile to
+that endpoint and check the cloud run logs that the tile has been processed
+without errors.
+
+This time the code running from the exact same docker image did not fail with permission
+errors, why? https://cloud.google.com/run/docs/securing/service-identity
 
 ## pubsub
 
@@ -150,7 +174,7 @@ producing messages from services processing those messages.
 https://cloud.google.com/pubsub/docs/overview
 
 
-We will now configure a pubsub queue which is configured to dispatch payloads
+We will now create a pubsub queue which is configured to dispatch payloads
 to our cloud run service. Each time a message is posted to this pubsub queue,
 the pubsub service will emit a request to our cloud run endpoint, which in turn
 will cause cloud run to create an instance to process that request/payload.
@@ -176,10 +200,6 @@ https://console.cloud.google.com/cloudpubsub/subscription/detail/bebigdata
 
 switch back again to the notebook, to the `dispatcher` section
 
-adapt the code to stop sending http requests to localhost, but instead point them to
-the $RUNURL/median endpoint on cloud run. Post a single tile to that endpoint and
-check the cloud run logs that the tile has been processed without errors.
-
 adapt the code once again to stop sending http requests and instead push its payloads
 to pubsub. Post a single tile payload to the pubsub queue, and check again
 the cloud run logs that the tile has been processed without errors.
@@ -188,8 +208,11 @@ once there are no errors, adapt the code so that **all** tiles covering
 the t31tcj granule are published to pubsub.
 
 **WARNING**: this will cause a large number of instances to be booted up and billed.
+you can always cancel a failing batch of requests by navigating to your pubsub queue
+at https://console.cloud.google.com/cloudpubsub/subscription/detail/bebigdata and
+clicking the `purge message` button.
 
-go to the cloud run console and observe the metrics and logs (that can take a few
+go to the cloud run console and observe the metrics and logs (they can take a few
 seconds to appear).
 
 check your output bucket (by default $BUCKETNAME/results): are all tiles present?

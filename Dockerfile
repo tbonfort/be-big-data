@@ -32,12 +32,12 @@ RUN pip install -r requirements.txt
 # Copy local code to the container image.
 ENV APP_HOME /app
 WORKDIR $APP_HOME
-COPY . ./
+COPY worker.py ./
 
 # Run the web service on container startup.
 # Use gunicorn webserver with a single worker process and 1 thread.
 # Timeout is set to 0 to disable the timeouts of the workers to allow Cloud Run to handle instance scaling.
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 1 --timeout 0 main:app
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 1 --timeout 0 worker:app
 
 # [END run_pubsub_dockerfile]
 # [END cloudrun_pubsub_dockerfile]

@@ -6,3 +6,8 @@ google-cloud-storage
 pyproj
 ipython
 ipykernel
+Flask==3.0.0
+gunicorn==20.1.0
+Werkzeug==3.0.1
+numpy
+numba
