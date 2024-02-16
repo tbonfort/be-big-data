@@ -1,6 +1,7 @@
 {
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "image": "mcr.microsoft.com/devcontainers/python:3-bookworm",
   "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/akhildevelops/devcontainer-features/apt:0": {
       "packages":"gdal-bin"
     },
@@ -12,7 +13,14 @@
       "extensions": [
         "ms-toolsai.jupyter",
         "ms-python.python"
-      ]
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "jupyter.kernels.excludePythonEnvironments": [
+          "/bin/python3",
+          "/usr/bin/python3"
+        ]
+      }
     }
   }
 }

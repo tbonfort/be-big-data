@@ -17,8 +17,10 @@ pixels.
 
 # initial setup
 
-- Create a codespace from this repository
-- wait for the codespace setup script to finish
+- Create a codespace from this repository: click on the green `<> Code` button
+  near the top right of the file list, select the `codespaces` tab, then click
+  on the green `create codespace on master` button
+- wait for the codespace to boot and the setup script to finish
 - authenticate with GCP from the codespace terminal: `gcloud auth login`
 
 once the setup has finished, open the `be.ipynb` notebook to explore the available data
@@ -99,6 +101,7 @@ from the notebook, and running a local webserver with:
 
 ```bash
 cd answers/worker
+pip install -r requirements.txt
 gunicorn --bind :8080 --workers 1 --threads 1 --timeout 0 main:app --reload
 ```
 
