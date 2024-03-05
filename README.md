@@ -43,7 +43,7 @@ export GCPPROJECT=foo-bar-1234
 # edit and choose a globally unique bucket name for this BE
 export BUCKETNAME=xxxxx
 # edit to point to the correct file (which was created when you ran "gcloud auth login")
-export GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/myemail@mydomain.com/adc.json
+export GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/legacy_credentials/myemail@mydomain.com/adc.json
 
 # you may edit the following variables, but it is not required
 # the name of the docker image to produce
