@@ -1,4 +1,8 @@
 # introduction
+
+lesson slides: 
+https://docs.google.com/presentation/d/1Lc89oWizg0-6ZJm7UlNsq3n90FxxhUKRgCgZoZMQq14/edit?usp=sharing
+
 This course will introduce running embarassingly parallel computations on 
 sentinel-2 rgb imagery using google cloud run. The (very artificial) objective 
 is to compute the median image from a one-year (2023) time-series over a given
@@ -220,6 +224,11 @@ check your output bucket (by default $BUCKETNAME/results): are all tiles present
 TODO: check log for errors. were retries successful? how to configure cloud-run
 concurrency and/or pubsub retries to avoid errors and/or 
 
+how much compute was provisionned for this exercise? how long would the whole
+process have taken if we only had a single instance available? what parameters
+would need changing if we had decided to use a different tiling scheme to split
+the job (with larger tiles? with smaller tiles?)
+
 # reconstructing/viewing the final median image
 
 c.f. notebook
@@ -229,4 +238,9 @@ c.f. notebook
 TODO: robustify and secure
 
 # cleanup
-TODO: delete gcp ressources created during this BE
+delete gcp ressources created during this BE:
+
+- delete the bucket associated with this course
+- delete the pubsub topic and subcription
+- delete the cloud-run deployment
+- delete the docker image we pushed
