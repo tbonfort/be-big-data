@@ -35,11 +35,11 @@ terminal in order to setup our local environment and the GCP ressources we will 
 # there are 3 variables you must edit before running the subsequent commands:
 
 # replace with your gcp project name
-export GCPPROJECT=foo-bar-1234
+export GCPPROJECT=solar-climber-412810
 # edit and choose a globally unique bucket name for this BE
-export BUCKETNAME=xxxxx
+export BUCKETNAME=tb-be-bigdata
 # edit to point to the correct file (which was created when you ran "gcloud auth login")
-export GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/myemail@mydomain.com/adc.json
+export GOOGLE_APPLICATION_CREDENTIALS=$HOME/.config/gcloud/legacy_credentials/thomas.bonfort@gmail.com/adc.json
 
 # you may edit the following variables, but it is not required
 # the name of the docker image to produce
@@ -134,6 +134,10 @@ this time the request will fail. why did it fail?
 bonus: modify the previous `docker run` command so that it runs correctly. hint: use
 a docker volume to mount your local credentials, and set the correct environment variable
 to point to the local path of your credential file.
+
+```bash
+docker run -t -e PORT=8081 -p 8081:8081 -v $HOME/.config/gcloud:/root/.config/gcloud -e GOOGLE_APPLICATION_CRED$DIMAGE
+```
 
 ## cloud run
 
